@@ -1,0 +1,544 @@
+---
+title: "FUT2_dietguthealth_fiber"
+author: "Yasmine"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+Purpose: determine associations between secretor status, fiber intake and GI inflammation marker levels. and PLOT
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(ggpubr)
+
+```
+
+```{r import}
+
+# Genotyping 
+fut2 <- read.csv("/Users/yasmine.bouzid/Documents/FUT2_analysis/data/forR_fut2.csv", header = T)
+
+# Gut health 
+df_c <- read.csv("/Users/yasmine.bouzid/Documents/GitHub/diet_guthealth/data/df_c.csv", header = T)
+
+df_m <- read.csv("/Users/yasmine.bouzid/Documents/GitHub/diet_guthealth/data/df_m.csv", header = T)
+
+df_n <- read.csv("/Users/yasmine.bouzid/Documents/GitHub/diet_guthealth/data/df_n.csv", header = T)
+
+df_l <- read.csv("/Users/yasmine.bouzid/Documents/GitHub/diet_guthealth/data/df_l.csv", header = T)
+
+# MEEEERGE 
+
+df_c <- merge(df_c, fut2, by = "subject_id") # n = 288
+df_m <- merge(df_m, fut2, by = "subject_id") # n = 288
+df_n <- merge(df_n, fut2, by = "subject_id") # n = 282
+df_l <- merge(df_l, fut2, by = "subject_id") # n = 338
+
+# unfortunately, need to correct structure of some variables each time -->
+
+df_c$subject_id <- as.factor(as.character(df_c$subject_id))
+df_c$sex <- df_c$sex %>% recode_factor('1' = 'Male', '2' = "Female")
+df_c$age_cat <- df_c$age_cat %>% recode_factor('1' = '18-33.99 years', '2' = "34-49.99 years", '3' = "50-65 years")
+df_c$bmi_cat <- df_c$bmi_cat %>% recode_factor('1' = 'Normal', '2' = "Overweight", '3' = "Obese")
+df_c$secr_status <- as.factor(as.character(df_c$secr_status))
+
+df_m$subject_id <- as.factor(as.character(df_m$subject_id))
+df_m$sex <- df_m$sex %>% recode_factor('1' = 'Male', '2' = "Female")
+df_m$age_cat <- df_m$age_cat %>% recode_factor('1' = '18-33.99 years', '2' = "34-49.99 years", '3' = "50-65 years")
+df_m$bmi_cat <- df_m$bmi_cat %>% recode_factor('1' = 'Normal', '2' = "Overweight", '3' = "Obese")
+df_m$secr_status <- as.factor(as.character(df_m$secr_status))
+
+df_n$subject_id <- as.factor(as.character(df_n$subject_id))
+df_n$sex <- df_n$sex %>% recode_factor('1' = 'Male', '2' = "Female")
+df_n$age_cat <- df_n$age_cat %>% recode_factor('1' = '18-33.99 years', '2' = "34-49.99 years", '3' = "50-65 years")
+df_n$bmi_cat <- df_n$bmi_cat %>% recode_factor('1' = 'Normal', '2' = "Overweight", '3' = "Obese")
+df_n$secr_status <- as.factor(as.character(df_n$secr_status))
+
+df_l$subject_id <- as.factor(as.character(df_l$subject_id))
+df_l$sex <- df_l$sex %>% recode_factor('1' = 'Male', '2' = "Female")
+df_l$age_cat <- df_l$age_cat %>% recode_factor('1' = '18-33.99 years', '2' = "34-49.99 years", '3' = "50-65 years")
+df_l$bmi_cat <- df_l$bmi_cat %>% recode_factor('1' = 'Normal', '2' = "Overweight", '3' = "Obese")
+df_l$secr_status <- as.factor(as.character(df_l$secr_status))
+
+```
+
+Models used for analysis: regression of transformed GI inflammation marker ~ dietary component
+Note: Age, sex, BMI not included as covariates because not significantly associated with calprotectin and MPO levels. Sex included for neopterin outcome. Sex and BMI included for LBP outcome. Associations previously established. 
+
+GIM ~ fiber + FUT2 + fiber:FUT2 + age + sex + BMI
+
+```{r asa24-total-fiber}
+
+# Create fibe_pk (pk = per 1000 kcal)
+
+df_c$fibe_pk <- df_c$fibe/(df_c$kcal/1000)
+df_m$fibe_pk <- df_m$fibe/(df_m$kcal/1000)
+df_n$fibe_pk <- df_n$fibe/(df_n$kcal/1000)
+df_l$fibe_pk <- df_l$fibe/(df_l$kcal/1000)
+
+# Calprotectin
+
+mod_fibe_pk_c <- lm(clpn_ln ~ fibe_pk + secr_status + fibe_pk * secr_status, data = df_c)
+summary(mod_fibe_pk_c) # 
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 60)", "Secretors (n = 228)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Adding a label for statistical analysis results 
+analysis_results <- "Secretor Status: β = 0.82, P = 0.02, \n Interaction (Fiber:Secretor Status): β = -0.07, P = 0.02"
+
+# Add a new column to indicate whether each observation belongs to the facet you want to label
+df_c$facet_label <- ifelse(df_c$secr_status == "secretor", TRUE, FALSE)
+
+#annotations <- data.frame(
+ # x = c(30),  # X coordinate for the annotation
+  #y = c(6),   # Y coordinate for the annotation
+#  label = analysis_results  # Text label for the annotation
+#)
+
+fut2fib_c1 <- ggplot(data = df_c, aes(x = fibe_pk, y = clpn_ln)) +
+        geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+             labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "Calprotectin ~ Recent Fiber + Secretor Status + Recent Fiber * Secretor Status",
+             x = "Recent Fiber Intake (grams/1000 kcal)",
+             y = "Transformed Calprotectin (ln(x + 3))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt")) + 
+ geom_text(data = subset(df_c, facet_label == TRUE), aes(x = 13, y = 6.5, label = analysis_results), size = 4.5, color = "black", hjust = 0)
+
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_c1.jpg', plot = fut2fib_c1, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in")
+
+# Myeloperoxidase
+
+mod_fibe_pk_m <- lm(mpo_ln ~ fibe_pk + secr_status+ fibe_pk * secr_status, data = df_m)
+summary(mod_fibe_pk_m) # 
+
+
+df_m$secr_status <- as.factor(as.character(df_m$secr_status))
+
+# Plot with both genotypes 
+
+fut2fib_m1 <- ggplot(data = df_m, aes(x = fibe_pk, y = mpo_ln)) +
+        geom_point(aes(color = factor(secr_status))) +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    aes(color = factor(secr_status))) +
+  facet_grid(~secr_status) +
+        labs(title = "Fiber Intake vs. Myeloperoxidase by Secretor Status",
+             x = "Recent Fiber Intake (grams/1000 kcal)",
+             y = "Transformed Myeloperoxidase (ln(x + 1))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 20),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 18),
+           axis.text = element_text(size = 15),
+        plot.margin = margin(10, 50, 10, 30, unit = "pt"))
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_m1.jpg', plot = fut2fib_m1, device = 'jpeg', dpi = 300, width = 21, height = 7, units = "in")
+
+
+# Neopterin
+
+mod_fibe_pk_n <- lm(nptn_boxcox ~ fibe_pk + secr_status + fibe_pk * secr_status + sex, data = df_n)
+summary(mod_fibe_pk_n) #
+
+df_n$secr_status <- as.factor(as.character(df_n$secr_status))
+
+# Plot with both genotypes 
+
+fut2fib_n1 <- ggplot(data = df_n, aes(x = fibe_pk, y = nptn_boxcox)) +
+        geom_point(aes(color = factor(secr_status))) +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    aes(color = factor(secr_status))) +
+  facet_grid(~secr_status) +
+        labs(title = "Fiber Intake vs. Neopterin by Secretor Status",
+             x = "Recent Fiber Intake (grams/1000 kcal)",
+             y = "Transformed Neopterin (Box Cox)",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 20),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 18),
+           axis.text = element_text(size = 15),
+        plot.margin = margin(10, 50, 10, 30, unit = "pt"))
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_n1.jpg', plot = fut2fib_n1, device = 'jpeg', dpi = 300, width = 21, height = 7, units = "in")
+
+
+# LBP
+
+mod_fibe_pk_l <- lm(lbp_ln ~ fibe_pk + secr_status + fibe_pk * secr_status + sex + bmi_final, data = df_l)
+summary(mod_fibe_pk_l) # 
+
+df_l$secr_status <- as.factor(as.character(df_l$secr_status))
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 70)", "Secretors (n = 268)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Adding a label for statistical analysis results 
+# analysis_results <- "Secretor Status: β = -0.03, P = 0.01, \n Interaction (Fiber:Secretor Status): β = 0.04, P = 0.02"
+
+# Add a new column to indicate whether each observation belongs to the facet you want to label
+# df_l$facet_label <- ifelse(df_l$secr_status == "secretor", TRUE, FALSE)
+
+# Plot with both genotypes 
+
+fut2fib_l1 <- ggplot(data = df_l, aes(x = fibe_pk, y = lbp_ln)) +
+        geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+        labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "LBP ~ Recent Fiber + Secretor Status + Recent Fiber * Secretor Status + Sex + BMI",
+             x = "Recent Fiber Intake (grams/1000 kcal)",
+             y = "Transformed LPS-binding protein (ln(x + 1))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt")) # + 
+ # geom_text(data = subset(df_l, facet_label == TRUE), aes(x = 10, y = 4, label = analysis_results), size = 4.5, color = "black", hjust = 0)
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_l1.jpg', plot = fut2fib_l1, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in")
+
+
+```
+Next, we'll look at total fiber from FFQ (dt_fibe)
+
+```{r ffq-total-fiber}
+
+# Create dt_fibe_pk (pk = per 1000 kcal)
+
+df_c$dt_fibe_pk <- df_c$dt_fibe/(df_c$dt_kcal/1000)
+df_m$dt_fibe_pk <- df_m$dt_fibe/(df_m$dt_kcal/1000)
+df_n$dt_fibe_pk <- df_n$dt_fibe/(df_n$dt_kcal/1000)
+df_l$dt_fibe_pk <- df_l$dt_fibe/(df_l$dt_kcal/1000)
+
+# Calprotectin
+
+mod_dt_fibe_pk_c <- lm(clpn_ln ~ dt_fibe_pk + secr_status + dt_fibe_pk * secr_status, data = df_c)
+summary(mod_dt_fibe_pk_c) # NS
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 60)", "Secretors (n = 228)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Adding a label for statistical analysis results 
+analysis_results <- "Secretor Status: β = 1.17, P = 0.008, \n Interaction (Fiber:Secretor Status): β = -0.09, P = 0.005"
+
+# Add a new column to indicate whether each observation belongs to the facet you want to label
+df_c$facet_label <- ifelse(df_c$secr_status == "secretor", TRUE, FALSE)
+
+# Plot with both genotypes 
+
+fut2fib_c2 <- ggplot(data = df_c, aes(x = dt_fibe_pk, y = clpn_ln)) +
+        geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+        labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "Calprotectin ~ Habitual Fiber + Secretor Status + Habitual Fiber * Secretor Status",
+             x = "Habitual Fiber Intake (grams/1000 kcal)",
+             y = "Transformed Calprotectin (ln(x + 3))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt")) + 
+ geom_text(data = subset(df_c, facet_label == TRUE), aes(x = 10, y = 6.5, label = analysis_results), size = 4.5, color = "black", hjust = 0)
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_c2.jpg', plot = fut2fib_c2, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in")
+
+# Myeloperoxidase
+
+mod_dt_fibe_pk_m <- lm(mpo_ln ~ dt_fibe_pk + secr_status + dt_fibe_pk * secr_status, data = df_m)
+summary(mod_dt_fibe_pk_m) # NS
+
+
+# Plot with both genotypes 
+
+fut2fib_m2 <- ggplot(data = df_m, aes(x = dt_fibe_pk, y = mpo_ln)) +
+        geom_point(aes(color = factor(secr_status))) +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    aes(color = factor(secr_status))) +
+  facet_grid(~secr_status) +
+        labs(title = "Fiber Intake vs. Myeloperoxidase by Secretor Status",
+             x = "Habitual Fiber Intake (grams/1000 kcal)",
+             y = "Transformed Myeloperoxidase (ln(x + 1))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 20),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 18),
+           axis.text = element_text(size = 15),
+        plot.margin = margin(10, 50, 10, 30, unit = "pt"))
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_m2.jpg', plot = fut2fib_m2, device = 'jpeg', dpi = 300, width = 21, height = 7, units = "in")
+
+# Neopterin
+
+mod_dt_fibe_pk_n <- lm(nptn_boxcox ~ dt_fibe_pk + secr_status + dt_fibe_pk * secr_status + sex, data = df_n)
+summary(mod_dt_fibe_pk_n) # NS
+
+# Plot with both genotypes 
+
+fut2fib_n2 <- ggplot(data = df_n, aes(x = dt_fibe_pk, y = nptn_boxcox)) +
+        geom_point(aes(color = factor(secr_status))) +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    aes(color = factor(secr_status))) +
+  facet_grid(~secr_status) +
+        labs(title = "Fiber Intake vs. Neopterin by Secretor Status",
+             x = "Habitual Fiber Intake (grams/1000 kcal)",
+             y = "Transformed Neopterin (Box Cox)",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 20),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 18),
+           axis.text = element_text(size = 15),
+        plot.margin = margin(10, 50, 10, 30, unit = "pt"))
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_n2.jpg', plot = fut2fib_n2, device = 'jpeg', dpi = 300, width = 21, height = 7, units = "in")
+
+
+# LBP
+
+mod_dt_fibe_pk_l <- lm(lbp_ln ~ dt_fibe_pk + secr_status + dt_fibe_pk * secr_status + sex + bmi_final, data = df_l)
+summary(mod_dt_fibe_pk_l) # NS
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 70)", "Secretors (n = 268)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Adding a label for statistical analysis results 
+analysis_results <- "Secretor Status: β = -0.03, P = 0.01, \n Interaction (Fiber:Secretor Status): β = 0.04, P = 0.02"
+
+# Add a new column to indicate whether each observation belongs to the facet you want to label
+df_l$facet_label <- ifelse(df_l$secr_status == "secretor", TRUE, FALSE)
+
+
+# Plot with both genotypes 
+
+fut2fib_l2 <- ggplot(data = df_l, aes(x = dt_fibe_pk, y = lbp_ln)) +
+         geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+        labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "LBP ~ Habitual Fiber + Secretor Status + Habitual Fiber * Secretor Status + Sex + BMI",
+             x = "Habitual Fiber Intake (grams/1000 kcal)",
+             y = "Transformed LPS-binding protein (ln(x + 1))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt")) + 
+ geom_text(data = subset(df_l, facet_label == TRUE), aes(x = 10, y = 4, label = analysis_results), size = 4.5, color = "black", hjust = 0)
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_l2.jpg', plot = fut2fib_l2, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in")
+
+
+
+```
+
+Last, we'll look at soluble fiber from the FFQ (dt_fiber_sol)
+
+```{r ffq-sol-fiber}
+
+
+# Create dt_fiber_sol_pk (pk = per 1000 kcal)
+
+df_c$dt_fiber_sol_pk <- df_c$dt_fiber_sol/(df_c$dt_kcal/1000)
+df_m$dt_fiber_sol_pk <- df_m$dt_fiber_sol/(df_m$dt_kcal/1000)
+df_n$dt_fiber_sol_pk <- df_n$dt_fiber_sol/(df_n$dt_kcal/1000)
+df_l$dt_fiber_sol_pk <- df_l$dt_fiber_sol/(df_l$dt_kcal/1000)
+
+# Calprotectin
+
+mod_dt_fiber_sol_pk_c <- lm(clpn_ln ~ dt_fiber_sol_pk + secr_status + dt_fiber_sol_pk * secr_status, data = df_c)
+summary(mod_dt_fiber_sol_pk_c) #
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 60)", "Secretors (n = 228)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Adding a label for statistical analysis results 
+analysis_results <- "Secretor Status: β = 1.04, P = 0.02, \n Interaction (Fiber:Secretor Status): β = -0.31, P = 0.02"
+
+# Add a new column to indicate whether each observation belongs to the facet you want to label
+df_c$facet_label <- ifelse(df_c$secr_status == "secretor", TRUE, FALSE)
+
+# Plot with both genotypes 
+
+fut2fib_c3 <- ggplot(data = df_c, aes(x = dt_fiber_sol_pk, y = clpn_ln)) +
+        geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+        labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "Calprotectin ~ Habitual Soluble Fiber + Secretor Status + Habitual Sol. Fiber * Secretor Status",
+             x = "Habitual Soluble Fiber Intake (grams/1000 kcal)",
+             y = "Transformed Calprotectin (ln(x + 3))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt")) + 
+ geom_text(data = subset(df_c, facet_label == TRUE), aes(x = 3, y = 6.5, label = analysis_results), size = 4.5, color = "black", hjust = 0)
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_c3.jpg', plot = fut2fib_c3, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in")
+
+# Myeloperoxidase
+
+mod_dt_fiber_sol_pk_m <- lm(mpo_ln ~ dt_fiber_sol_pk + secr_status + dt_fiber_sol_pk * secr_status, data = df_m)
+summary(mod_dt_fiber_sol_pk_m) # 
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 60)", "Secretors (n = 228)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Adding a label for statistical analysis results 
+analysis_results <- "Secretor Status: β = 0.85, P = 0.02, \n Interaction (Fiber:Secretor Status): β = -0.23, P = 0.03"
+
+# Add a new column to indicate whether each observation belongs to the facet you want to label
+df_m$facet_label <- ifelse(df_m$secr_status == "secretor", TRUE, FALSE)
+
+# Plot with both genotypes 
+
+fut2fib_m3 <- ggplot(data = df_m, aes(x = dt_fiber_sol_pk, y = mpo_ln)) +
+           geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+        labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "Myeloperoxidase ~ Habitual Soluble Fiber + Secretor Status + Habitual Sol. Fiber * Secretor Status",
+             x = "Habitual Soluble Fiber Intake (grams/1000 kcal)",
+             y = "Transformed Myeloperoxidase (ln(x + 1))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt")) + 
+ geom_text(data = subset(df_c, facet_label == TRUE), aes(x = 5, y = 8, label = analysis_results), size = 4.5, color = "black", hjust = 0)
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_m3.jpg', plot = fut2fib_m3, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in")
+
+# Neopterin
+
+mod_dt_fiber_sol_pk_n <- lm(nptn_boxcox ~ dt_fiber_sol_pk + secr_status + dt_fiber_sol_pk * secr_status + sex, data = df_n)
+summary(mod_dt_fiber_sol_pk_n) # NS
+
+# Plot with both genotypes 
+
+fut2fib_n3 <- ggplot(data = df_n, aes(x = dt_fiber_sol_pk, y = nptn_boxcox)) +
+        geom_point(aes(color = factor(secr_status))) +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    aes(color = factor(secr_status))) +
+  facet_grid(~secr_status) +
+        labs(title = "Fiber Intake vs. Neopterin by Secretor Status",
+             x = "Habitual Soluble Fiber Intake (grams/1000 kcal)",
+             y = "Transformed Neopterin (Box Cox)",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 20),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 18),
+           axis.text = element_text(size = 15),
+        plot.margin = margin(10, 50, 10, 30, unit = "pt"))
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_n3.jpg', plot = fut2fib_n3, device = 'jpeg', dpi = 300, width = 21, height = 7, units = "in")
+
+# LBP
+
+mod_dt_fiber_sol_pk_l <- lm(lbp_ln ~ dt_fiber_sol_pk + secr_status + dt_fiber_sol_pk * secr_status + sex + bmi_final, data = df_l)
+summary(mod_dt_fiber_sol_pk_l) # NS
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 70)", "Secretors (n = 268)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Adding a label for statistical analysis results 
+analysis_results <- "Secretor Status: β = -0.46, P = 0.02, \n Interaction (Fiber:Secretor Status): β = 0.13, P = 0.02"
+
+# Add a new column to indicate whether each observation belongs to the facet you want to label
+df_l$facet_label <- ifelse(df_l$secr_status == "secretor", TRUE, FALSE)
+
+# Plot with both genotypes 
+
+fut2fib_l3 <- ggplot(data = df_l, aes(x = dt_fiber_sol_pk, y = lbp_ln)) +
+                geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+        labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "LBP ~ Habitual Soluble Fiber + Secretor Status + Hab. Soluble Fiber * Secretor Status + Sex + BMI",
+             x = "Habitual Soluble Fiber Intake (grams/1000 kcal)",
+             y = "Transformed LBP (ln(x + 1))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt")) + 
+ geom_text(data = subset(df_l, facet_label == TRUE), aes(x = 3, y = 4, label = analysis_results), size = 4.5, color = "black", hjust = 0)
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_l3.jpg', plot = fut2fib_l3, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in")
+
+
+```
+
+**Summary of Findings**: 
+
+1. Recent fiber intake: For calprotectin model, secretor status significant and interaction between fiber and secretor status significant 
+2. Habitual fiber intake: same as above 
+3. Habitual soluble fiber intake: for BOTH clpn and MPO, secretor status significant and interaction between fiber and secretor status significant 
