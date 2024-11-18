@@ -1,0 +1,171 @@
+---
+title: "FUT2_dietguthealth_fiber"
+author: "Yasmine"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+Purpose: determine associations between secretor status, fiber intake and GI inflammation marker levels. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+```
+
+```{r import}
+
+# Genotyping 
+fut2 <- read.csv("/Users/yasmine.bouzid/Documents/FUT2_analysis/data/forR_fut2.csv", header = T)
+
+# Gut health 
+df_c <- read.csv("/Users/yasmine.bouzid/Documents/GitHub/diet_guthealth/data/df_c.csv", header = T)
+
+df_m <- read.csv("/Users/yasmine.bouzid/Documents/GitHub/diet_guthealth/data/df_m.csv", header = T)
+
+df_n <- read.csv("/Users/yasmine.bouzid/Documents/GitHub/diet_guthealth/data/df_n.csv", header = T)
+
+df_l <- read.csv("/Users/yasmine.bouzid/Documents/GitHub/diet_guthealth/data/df_l.csv", header = T)
+
+# MEEEERGE 
+
+df_c <- merge(df_c, fut2, by = "subject_id") # n = 288
+df_m <- merge(df_m, fut2, by = "subject_id") # n = 288
+df_n <- merge(df_n, fut2, by = "subject_id") # n = 282
+df_l <- merge(df_l, fut2, by = "subject_id") # n = 338
+
+# unfortunately, need to correct structure of some variables each time -->
+
+df_c$subject_id <- as.factor(as.character(df_c$subject_id))
+df_c$sex <- df_c$sex %>% recode_factor('1' = 'Male', '2' = "Female")
+df_c$age_cat <- df_c$age_cat %>% recode_factor('1' = '18-33.99 years', '2' = "34-49.99 years", '3' = "50-65 years")
+df_c$bmi_cat <- df_c$bmi_cat %>% recode_factor('1' = 'Normal', '2' = "Overweight", '3' = "Obese")
+
+df_m$subject_id <- as.factor(as.character(df_m$subject_id))
+df_m$sex <- df_m$sex %>% recode_factor('1' = 'Male', '2' = "Female")
+df_m$age_cat <- df_m$age_cat %>% recode_factor('1' = '18-33.99 years', '2' = "34-49.99 years", '3' = "50-65 years")
+df_m$bmi_cat <- df_m$bmi_cat %>% recode_factor('1' = 'Normal', '2' = "Overweight", '3' = "Obese")
+
+df_n$subject_id <- as.factor(as.character(df_n$subject_id))
+df_n$sex <- df_n$sex %>% recode_factor('1' = 'Male', '2' = "Female")
+df_n$age_cat <- df_n$age_cat %>% recode_factor('1' = '18-33.99 years', '2' = "34-49.99 years", '3' = "50-65 years")
+df_n$bmi_cat <- df_n$bmi_cat %>% recode_factor('1' = 'Normal', '2' = "Overweight", '3' = "Obese")
+
+df_l$subject_id <- as.factor(as.character(df_l$subject_id))
+df_l$sex <- df_l$sex %>% recode_factor('1' = 'Male', '2' = "Female")
+df_l$age_cat <- df_l$age_cat %>% recode_factor('1' = '18-33.99 years', '2' = "34-49.99 years", '3' = "50-65 years")
+df_l$bmi_cat <- df_l$bmi_cat %>% recode_factor('1' = 'Normal', '2' = "Overweight", '3' = "Obese")
+
+```
+
+Models used for analysis: regression of transformed GI inflammation marker ~ dietary component
+Note: Age, sex, BMI not included as covariates because not significantly associated with calprotectin and MPO levels. Sex included for neopterin outcome. Sex and BMI included for LBP outcome. Associations previously established. 
+
+GIM ~ fiber + FUT2 + fiber:FUT2 + age + sex + BMI
+
+```{r asa24-total-fiber}
+
+# Create fibe_pk (pk = per 1000 kcal)
+
+df_c$fibe_pk <- df_c$fibe/(df_c$kcal/1000)
+df_m$fibe_pk <- df_m$fibe/(df_m$kcal/1000)
+df_n$fibe_pk <- df_n$fibe/(df_n$kcal/1000)
+df_l$fibe_pk <- df_l$fibe/(df_l$kcal/1000)
+
+# Calprotectin
+
+mod_fibe_pk_c <- lm(clpn_ln ~ fibe_pk + secr_status + fibe_pk * secr_status, data = df_c)
+summary(mod_fibe_pk_c) # 
+
+# Myeloperoxidase
+
+mod_fibe_pk_m <- lm(mpo_ln ~ fibe_pk + secr_status+ fibe_pk * secr_status, data = df_m)
+summary(mod_fibe_pk_m) # 
+
+# Neopterin
+
+mod_fibe_pk_n <- lm(nptn_boxcox ~ fibe_pk + secr_status + fibe_pk * secr_status + sex, data = df_n)
+summary(mod_fibe_pk_n) #
+
+# LBP
+
+mod_fibe_pk_l <- lm(lbp_ln ~ fibe_pk + secr_status + fibe_pk * secr_status + sex + bmi_final, data = df_l)
+summary(mod_fibe_pk_l) # 
+
+
+```
+Next, we'll look at total fiber from FFQ (dt_fibe)
+
+```{r ffq-total-fiber}
+
+# Create dt_fibe_pk (pk = per 1000 kcal)
+
+df_c$dt_fibe_pk <- df_c$dt_fibe/(df_c$kcal/1000)
+df_m$dt_fibe_pk <- df_m$dt_fibe/(df_m$kcal/1000)
+df_n$dt_fibe_pk <- df_n$dt_fibe/(df_n$kcal/1000)
+df_l$dt_fibe_pk <- df_l$dt_fibe/(df_l$kcal/1000)
+
+# Calprotectin
+
+mod_dt_fibe_pk_c <- lm(clpn_ln ~ dt_fibe_pk + secr_status + dt_fibe_pk * secr_status, data = df_c)
+summary(mod_dt_fibe_pk_c) # NS
+
+# Myeloperoxidase
+
+mod_dt_fibe_pk_m <- lm(mpo_ln ~ dt_fibe_pk + secr_status + dt_fibe_pk * secr_status, data = df_m)
+summary(mod_dt_fibe_pk_m) # NS
+
+# Neopterin
+
+mod_dt_fibe_pk_n <- lm(nptn_boxcox ~ dt_fibe_pk + secr_status + dt_fibe_pk * secr_status + sex, data = df_n)
+summary(mod_dt_fibe_pk_n) # NS
+
+# LBP
+
+mod_dt_fibe_pk_l <- lm(lbp_ln ~ dt_fibe_pk + secr_status + dt_fibe_pk * secr_status + sex + bmi_final, data = df_l)
+summary(mod_dt_fibe_pk_l) # NS
+
+
+```
+
+Last, we'll look at soluble fiber from the FFQ (dt_fiber_sol)
+
+```{r ffq-sol-fiber}
+
+
+# Create dt_fiber_sol_pk (pk = per 1000 kcal)
+
+df_c$dt_fiber_sol_pk <- df_c$dt_fiber_sol/(df_c$kcal/1000)
+df_m$dt_fiber_sol_pk <- df_m$dt_fiber_sol/(df_m$kcal/1000)
+df_n$dt_fiber_sol_pk <- df_n$dt_fiber_sol/(df_n$kcal/1000)
+df_l$dt_fiber_sol_pk <- df_l$dt_fiber_sol/(df_l$kcal/1000)
+
+# Calprotectin
+
+mod_dt_fiber_sol_pk_c <- lm(clpn_ln ~ dt_fiber_sol_pk + secr_status + dt_fiber_sol_pk * secr_status, data = df_c)
+summary(mod_dt_fiber_sol_pk_c) #
+
+# Myeloperoxidase
+
+mod_dt_fiber_sol_pk_m <- lm(mpo_ln ~ dt_fiber_sol_pk + secr_status + dt_fiber_sol_pk * secr_status, data = df_m)
+summary(mod_dt_fiber_sol_pk_m) # NS
+
+# Neopterin
+
+mod_dt_fiber_sol_pk_n <- lm(nptn_boxcox ~ dt_fiber_sol_pk + secr_status + dt_fiber_sol_pk * secr_status + sex, data = df_n)
+summary(mod_dt_fiber_sol_pk_n) # NS
+
+# LBP
+
+mod_dt_fiber_sol_pk_l <- lm(lbp_ln ~ dt_fiber_sol_pk + secr_status + dt_fiber_sol_pk * secr_status + sex + bmi_final, data = df_l)
+summary(mod_dt_fiber_sol_pk_l) # NS
+
+
+```
+
+**Summary of Findings**: 
+
+1. Recent fiber intake: For calprotectin model, secretor status significant and interaction between fiber and secretor status significant 
+2. Habitual fiber intake: same as above 
+3. Habitual soluble fiber intake: for BOTH clpn and MPO, secretor status significant and interaction between fiber and secretor status significant 
