@@ -1,0 +1,131 @@
+---
+title: "FUT2_covar_age"
+author: "Yasmine"
+date: "`r Sys.Date()`"
+output: html_document
+---
+Purpose: See if there's a difference in age between secretors and non-secretors 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(ggpubr)
+library(sjPlot)
+library(tidyverse)
+library(car)
+library(rcompanion)
+```
+
+Import / test we have the right ones (stool data cleaning participants removed)
+
+```{r import}
+
+# Genotyping 
+fut2 <- read.csv("/Users/yasmine.bouzid/Documents/FUT2_analysis/data/forR_fut2.csv", header = T)
+
+# here's the thing, we should merge onto fut2 since that has the most genotype
+
+# Gut health 
+
+df_l <- read.csv("/Users/yasmine.bouzid/Documents/GitHub/diet_guthealth/data/df_l.csv", header = T)
+
+# MEEEERGE 
+df_l <- merge(fut2, df_l, by = "subject_id") # n = 338
+
+table(df_l$secr_status)
+
+# unfortunately, need to correct structure of some variables each time -->
+
+df_l$subject_id <- as.factor(as.character(df_l$subject_id))
+df_l$sex <- df_l$sex %>% recode_factor('1' = 'Male', '2' = "Female")
+df_l$age_cat <- df_l$age_cat %>% recode_factor('1' = '18-33.99 years', '2' = "34-49.99 years", '3' = "50-65 years")
+df_l$bmi_cat <- df_l$bmi_cat %>% recode_factor('1' = 'Normal', '2' = "Overweight", '3' = "Obese")
+
+# READY FOR LIFT OFF
+```
+
+Age
+
+```{r separate-test}
+
+# Test differences in mean age between secretors and non-secretors 
+# Non-parametric because...not sure whether factor levels normally distributed..guess I could test
+# Anyway
+kruskal.test(age ~ secr_status, data = df_l) # no difference 
+
+
+# Descriptively, this tracks. Summary stats of age by secretor status--
+aggregate(df_l$age, list(df_l$secr_status), FUN=summary)
+
+# let's look at age distribution for normality 
+
+plotNormalDensity(df_l$age[df_l$secr_status == "non_secretor"])
+plotNormalDensity(df_l$age[df_l$secr_status == "secretor"]) 
+
+shapiro.test(df_l$age[df_l$secr_status == "non_secretor"]) # not sig dif from normal
+shapiro.test(df_l$age[df_l$secr_status == "secretor"]) # sig diff normal oop
+
+
+
+```
+
+
+```{r plot}
+
+# Box plot of age between secretor status
+ggboxplot(df_l, x = "secr_status", y = "age", 
+          color = "secr_status", palette = c("#00AFBB", "#E7B800"),
+          order = c("non_secretor", "secretor"),
+          ylab = "Age", xlab = "Secretor Status")
+
+fig_boxs2 <- ggplot(df_l, aes(x=secr_status, y=age)) + 
+  geom_boxplot(notch = TRUE, 
+               outlier.colour="red", 
+               outlier.shape=8,
+               outlier.size=4) + 
+  stat_summary(fun.y=mean, geom="point", shape=23, size=6) +
+  labs(
+    title = "Boxplot: Age by Secretor Status",
+    x = "Secretor Status", 
+    y = "Age (years)"
+  ) +
+  scale_x_discrete(
+    labels = c("Non-secretors (n = 70)", "Secretors (n = 268)")) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(size = 20),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14)) 
+  
+ggsave("/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fig_boxs2.jpeg", plot = fig_boxs2, width = 8, height = 6, units = "in")
+
+
+fig_boxs3 <- ggplot(df_l, aes(x=secr_status, y=bmi_final)) + 
+  geom_boxplot(notch = TRUE, 
+               outlier.colour="red", 
+               outlier.shape=8,
+               outlier.size=4) + 
+  stat_summary(fun.y=mean, geom="point", shape=23, size=6) +
+  labs(
+    title = "Boxplot: BMI by Secretor Status",
+    x = "Secretor Status", 
+    y = bquote(Body~Mass~Index~(kg/m^2))
+  ) +
+  scale_x_discrete(
+    labels = c("Non-secretors (n = 70)", "Secretors (n = 268)")) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(size = 20),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14)) 
+  
+ggsave("/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fig_boxs3.jpeg", plot = fig_boxs3, width = 8, height = 6, units = "in")
+
+```
+
