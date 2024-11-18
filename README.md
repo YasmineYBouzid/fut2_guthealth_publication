@@ -8,6 +8,6 @@
 **Determine any differences in fiber intake (recent, habitual, habitual soluble) by secretors status**
 - fiberbysecretorstatus_FUT2guthealth.Rmd
 
-**Determine and plot associations between fiber intake and GI health markers with interactions of fiber intake**
+**Determine and plot associations between fiber intake and GI health markers with interactions of secretor status**
 - perkcal_fiber_FUT2guthealth.Rmd
 - plots_perkcal_fiber_FUT2guthealth.Rmd
