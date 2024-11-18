@@ -5,4 +5,5 @@
 - FUT2guthealth_covars_sex.Rmd
 - FUT2guthealth_covars_BMI.Rmd
 
-**
+**Determine any differences in fiber intake (recent, habitual, habitual soluble) by secretors status**
+- 
