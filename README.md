@@ -15,5 +15,7 @@
 **Determine difference in overall microbiome composition by secretor status**
 - PERMANOVA_secretorstatus.Rmd
 
-**Determine difference in microbiome composition between non-secretors and high and low recent fiber intake secretors**
+**Determine difference in microbiome composition between non-secretors and low and high recent fiber intake secretors**
+- PERMANOVA_secretorstatus_tertileASA24low.Rmd
+- PERMANOVA_secretorstatus_tertileASA24high.Rmd
 
