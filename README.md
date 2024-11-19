@@ -11,3 +11,7 @@
 **Determine and plot associations between fiber intake and GI health markers with interactions of secretor status**
 - perkcal_fiber_FUT2guthealth.Rmd
 - plots_perkcal_fiber_FUT2guthealth.Rmd
+
+**Determine difference in overall microbiome composition by secretor status**
+- PERMANOVA_secretorstatus.Rmd
+
