@@ -22,3 +22,6 @@
 - PERMANOVA_secretorstatus_tertileASA24low.Rmd
 - PERMANOVA_secretorstatus_tertileASA24high.Rmd
 
+**Determine difference in microbiome composition between non-secretors and low and high habitual fiber intake secretors**
+- PERMANOVA_secretorstatus_tertileFFQlow.Rmd
+- PERMANOVA_secretorstatus_tertileFFQhigh.Rmd
