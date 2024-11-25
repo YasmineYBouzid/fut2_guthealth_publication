@@ -29,3 +29,6 @@
 **Determine difference in microbiome composition between non-secretors and low and high habitual soluble fiber intake secretors**
 - PERMANOVA_secretorstatus_tertileFFQsollow.Rmd
 - PERMANOVA_secretorstatus_tertileFFQsolhigh.Rmd
+
+**Add fiber tertile designations to dataframe for machine learning**
+- 
