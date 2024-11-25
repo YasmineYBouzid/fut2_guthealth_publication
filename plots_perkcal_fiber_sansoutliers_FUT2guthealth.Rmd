@@ -1,0 +1,548 @@
+---
+title: "FUT2_dietguthealth_fiber"
+author: "Yasmine"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+Purpose: determine associations between secretor status, fiber intake and GI inflammation marker levels. and PLOT
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(ggpubr)
+library(rstatix)
+
+```
+
+```{r import}
+
+# Genotyping 
+fut2 <- read.csv("/Users/yasmine.bouzid/Documents/FUT2_analysis/data/forR_fut2.csv", header = T)
+
+# Gut health 
+df_c <- read.csv("/Users/yasmine.bouzid/Documents/GitHub/diet_guthealth/data/df_c.csv", header = T)
+
+df_m <- read.csv("/Users/yasmine.bouzid/Documents/GitHub/diet_guthealth/data/df_m.csv", header = T)
+
+df_l <- read.csv("/Users/yasmine.bouzid/Documents/GitHub/diet_guthealth/data/df_l.csv", header = T)
+
+# MEEEERGE 
+
+df_c <- merge(df_c, fut2, by = "subject_id") # n = 288
+df_m <- merge(df_m, fut2, by = "subject_id") # n = 288
+df_l <- merge(df_l, fut2, by = "subject_id") # n = 338
+
+# unfortunately, need to correct structure of some variables each time -->
+
+df_c$subject_id <- as.factor(as.character(df_c$subject_id))
+df_c$sex <- df_c$sex %>% recode_factor('1' = 'Male', '2' = "Female")
+df_c$age_cat <- df_c$age_cat %>% recode_factor('1' = '18-33.99 years', '2' = "34-49.99 years", '3' = "50-65 years")
+df_c$bmi_cat <- df_c$bmi_cat %>% recode_factor('1' = 'Normal', '2' = "Overweight", '3' = "Obese")
+df_c$secr_status <- as.factor(as.character(df_c$secr_status))
+
+df_m$subject_id <- as.factor(as.character(df_m$subject_id))
+df_m$sex <- df_m$sex %>% recode_factor('1' = 'Male', '2' = "Female")
+df_m$age_cat <- df_m$age_cat %>% recode_factor('1' = '18-33.99 years', '2' = "34-49.99 years", '3' = "50-65 years")
+df_m$bmi_cat <- df_m$bmi_cat %>% recode_factor('1' = 'Normal', '2' = "Overweight", '3' = "Obese")
+df_m$secr_status <- as.factor(as.character(df_m$secr_status))
+
+df_l$subject_id <- as.factor(as.character(df_l$subject_id))
+df_l$sex <- df_l$sex %>% recode_factor('1' = 'Male', '2' = "Female")
+df_l$age_cat <- df_l$age_cat %>% recode_factor('1' = '18-33.99 years', '2' = "34-49.99 years", '3' = "50-65 years")
+df_l$bmi_cat <- df_l$bmi_cat %>% recode_factor('1' = 'Normal', '2' = "Overweight", '3' = "Obese")
+df_l$secr_status <- as.factor(as.character(df_l$secr_status))
+
+# Create fibe_pk (pk = per 1000 kcal) ASA24
+
+df_c$fibe_pk <- df_c$fibe/(df_c$kcal/1000)
+df_m$fibe_pk <- df_m$fibe/(df_m$kcal/1000)
+df_l$fibe_pk <- df_l$fibe/(df_l$kcal/1000)
+
+# Create dt_fibe_pk (pk = per 1000 kcal) FFQ
+
+df_c$dt_fibe_pk <- df_c$dt_fibe/(df_c$dt_kcal/1000)
+df_m$dt_fibe_pk <- df_m$dt_fibe/(df_m$dt_kcal/1000)
+df_l$dt_fibe_pk <- df_l$dt_fibe/(df_l$dt_kcal/1000)
+
+# Create dt_fiber_sol_pk (pk = per 1000 kcal) FFQ 
+
+df_c$dt_fiber_sol_pk <- df_c$dt_fiber_sol/(df_c$dt_kcal/1000)
+df_m$dt_fiber_sol_pk <- df_m$dt_fiber_sol/(df_m$dt_kcal/1000)
+df_l$dt_fiber_sol_pk <- df_l$dt_fiber_sol/(df_l$dt_kcal/1000)
+
+```
+
+```{r remove-outliers1}
+
+# separating the two secretor status levels, to eliminate outliers from each
+df_c_ns <- df_c[df_c$secr_status == "non_secretor", ]
+df_c_s <- df_c[df_c$secr_status == "secretor", ]
+
+# identify and remove outliers 
+out_c_ns <- boxplot.stats(df_c_ns$fibe_pk)$out # success! well..this shows the values
+# df_out_c_ns <- which(df_c_ns$fibe_pk %in% c(out_c_ns)) screeee
+
+View(identify_outliers(data = df_c_ns, variable = "fibe_pk")) # alright, I'll remove 6053 and 8031 subject_id == c(6053, 8031)
+
+View(identify_outliers(data = df_c_s, variable = "fibe_pk")) # c(6032, 7116, 8085, 9035, 9056)
+
+# filter out le outliers
+df_c_ns_out <- df_c_ns %>% filter(!subject_id %in% c(6053, 8031)) # woop
+df_c_s_out <- df_c_s %>% filter(!subject_id %in% c(6032, 7116, 8085, 9035, 9056))
+
+# smack em back together so you can run the models .. scree I'm gonna need to do this again for the others. 
+
+df_c_out <- rbind(df_c_ns_out, df_c_s_out) # yee
+```
+
+
+Models used for analysis: regression of transformed GI inflammation marker ~ dietary component
+Note: Age, sex, BMI not included as covariates because not significantly associated with calprotectin and MPO levels. Sex included for neopterin outcome. Sex and BMI included for LBP outcome. Associations previously established. 
+
+GIM ~ fiber + FUT2 + fiber:FUT2 + age + sex + BMI
+
+```{r asa24-total-fiber}
+
+# Calprotectin
+
+mod_fibe_pk_c <- lm(clpn_ln ~ fibe_pk + secr_status + fibe_pk * secr_status, data = df_c_out)
+summary(mod_fibe_pk_c) # 
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 58)", "Secretors (n = 223)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Adding a label for statistical analysis results 
+analysis_results <- "Secretor Status: β = 1.08, P = 0.005, \n Interaction (Fiber:Secretor Status): β = -0.10, P = 0.003"
+
+# Add a new column to indicate whether each observation belongs to the facet you want to label
+df_c_out$facet_label <- ifelse(df_c_out$secr_status == "secretor", TRUE, FALSE)
+
+#annotations <- data.frame(
+ # x = c(30),  # X coordinate for the annotation
+  #y = c(6),   # Y coordinate for the annotation
+#  label = analysis_results  # Text label for the annotation
+#)
+
+fut2fib_c1 <- ggplot(data = df_c_out, aes(x = fibe_pk, y = clpn_ln)) +
+        geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+             labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "Calprotectin ~ Recent Fiber + Secretor Status + Recent Fiber * Secretor Status",
+             x = "Recent Fiber Intake (grams/1000 kcal)",
+             y = "Transformed Calprotectin (ln(x + 3))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt")) + 
+ geom_text(data = subset(df_c_out, facet_label == TRUE), aes(x = 3.5, y = 6.5, label = analysis_results), size = 4.5, color = "black", hjust = 0)
+
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_c1_out.jpg', plot = fut2fib_c1, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in")
+
+
+```
+
+```{r remove-outliers2}
+
+# separating the two secretor status levels, to eliminate outliers from each
+df_c_ns <- df_c[df_c$secr_status == "non_secretor", ]
+df_c_s <- df_c[df_c$secr_status == "secretor", ]
+
+# identify and remove outliers 
+# out_c_ns <- boxplot.stats(df_c_ns$fibe_pk)$out # success! well..this shows the values
+# df_out_c_ns <- which(df_c_ns$fibe_pk %in% c(out_c_ns)) screeee
+
+# here's where we change the variable we're looking at (FFQ fiber)
+View(identify_outliers(data = df_c_ns, variable = "dt_fibe_pk")) # alright, I'll remove 6003, 6053, 8031
+
+View(identify_outliers(data = df_c_s, variable = "dt_fibe_pk")) # 5048, 6032, 7043, 8058
+
+# filter out le outliers
+df_c_ns_out <- df_c_ns %>% filter(!subject_id %in% c(6003, 6053, 8031)) # woop
+df_c_s_out <- df_c_s %>% filter(!subject_id %in% c(5048, 6032, 7043, 8058))
+
+# smack em back together so you can run the models .. scree I'm gonna need to do this again for the others. 
+
+df_c_out <- rbind(df_c_ns_out, df_c_s_out) # yee
+```
+
+Next, we'll look at total fiber from FFQ (dt_fibe)
+
+```{r ffq-total-fiber}
+
+# Calprotectin
+
+mod_dt_fibe_pk_c <- lm(clpn_ln ~ dt_fibe_pk + secr_status + dt_fibe_pk * secr_status, data = df_c_out)
+summary(mod_dt_fibe_pk_c) # NS
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 57)", "Secretors (n = 224)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Adding a label for statistical analysis results 
+analysis_results <- "Secretor Status: β = 1.49, P = 0.003, \n Interaction (Fiber:Secretor Status): β = -0.13, P = 0.002"
+
+# Add a new column to indicate whether each observation belongs to the facet you want to label
+df_c_out$facet_label <- ifelse(df_c_out$secr_status == "secretor", TRUE, FALSE)
+
+# Plot with both genotypes 
+
+fut2fib_c2 <- ggplot(data = df_c_out, aes(x = dt_fibe_pk, y = clpn_ln)) +
+        geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+        labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "Calprotectin ~ Habitual Fiber + Secretor Status + Habitual Fiber * Secretor Status",
+             x = "Habitual Fiber Intake (grams/1000 kcal)",
+             y = "Transformed Calprotectin (ln(x + 3))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt")) + 
+ geom_text(data = subset(df_c_out, facet_label == TRUE), aes(x = 6, y = 6.5, label = analysis_results), size = 4.5, color = "black", hjust = 0)
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_c2_out.jpg', plot = fut2fib_c2, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in")
+
+```
+
+Last, we'll look at soluble fiber from the FFQ (dt_fiber_sol)
+
+```{r remove-outliers3}
+
+# separating the two secretor status levels, to eliminate outliers from each
+df_c_ns <- df_c[df_c$secr_status == "non_secretor", ]
+df_c_s <- df_c[df_c$secr_status == "secretor", ]
+
+# identify and remove outliers 
+# out_c_ns <- boxplot.stats(df_c_ns$fibe_pk)$out # success! well..this shows the values
+# df_out_c_ns <- which(df_c_ns$fibe_pk %in% c(out_c_ns)) screeee
+
+# here's where we change the variable we're looking at (FFQ fiber)
+View(identify_outliers(data = df_c_ns, variable = "dt_fiber_sol_pk")) # 6003, 8031
+
+View(identify_outliers(data = df_c_s, variable = "dt_fiber_sol_pk")) # 5048, 6032, 9035
+
+# filter out le outliers
+df_c_ns_out <- df_c_ns %>% filter(!subject_id %in% c(6003, 8031)) # woop
+df_c_s_out <- df_c_s %>% filter(!subject_id %in% c(5048, 6032, 9035))
+
+# smack em back together so you can run the models .. scree I'm gonna need to do this again for the others. 
+
+df_c_out <- rbind(df_c_ns_out, df_c_s_out) # yee
+
+# MPOOO
+
+# separating the two secretor status levels, to eliminate outliers from each
+df_m_ns <- df_m[df_m$secr_status == "non_secretor", ]
+df_m_s <- df_m[df_m$secr_status == "secretor", ]
+
+# identify and remove outliers 
+# out_c_ns <- boxplot.stats(df_m_ns$fibe_pk)$out # success! well..this shows the values
+# df_out_c_ns <- which(df_m_ns$fibe_pk %in% c(out_c_ns)) screeee
+
+# here's where we change the variable we're looking at (FFQ fiber)
+View(identify_outliers(data = df_m_ns, variable = "dt_fiber_sol_pk")) # 
+
+View(identify_outliers(data = df_m_s, variable = "dt_fiber_sol_pk")) # 
+
+# filter out le outliers
+df_m_ns_out <- df_m_ns %>% filter(!subject_id %in% c(6003, 8031)) # woop
+df_m_s_out <- df_m_s %>% filter(!subject_id %in% c(5048, 6032, 9035))
+
+# smack em back together so you can run the models .. scree I'm gonna need to do this again for the others. 
+
+df_m_out <- rbind(df_m_ns_out, df_m_s_out) # yee
+
+
+```
+
+```{r ffq-sol-fiber}
+
+# Calprotectin
+
+mod_dt_fiber_sol_pk_c <- lm(clpn_ln ~ dt_fiber_sol_pk + secr_status + dt_fiber_sol_pk * secr_status, data = df_c_out)
+summary(mod_dt_fiber_sol_pk_c) #
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 58)", "Secretors (n = 225)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Adding a label for statistical analysis results 
+analysis_results <- "Secretor Status: β = 1.28, P = 0.01, \n Interaction (Fiber:Secretor Status): β = -0.39, P = 0.009"
+
+# Add a new column to indicate whether each observation belongs to the facet you want to label
+df_c_out$facet_label <- ifelse(df_c_out$secr_status == "secretor", TRUE, FALSE)
+
+# Plot with both genotypes 
+
+fut2fib_c3 <- ggplot(data = df_c_out, aes(x = dt_fiber_sol_pk, y = clpn_ln)) +
+        geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+        labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "Calprotectin ~ Habitual Soluble Fiber + Secretor Status + Habitual Sol. Fiber * Secretor Status",
+             x = "Habitual Soluble Fiber Intake (grams/1000 kcal)",
+             y = "Transformed Calprotectin (ln(x + 3))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt")) + 
+ geom_text(data = subset(df_c_out, facet_label == TRUE), aes(x = 2.25, y = 6.5, label = analysis_results), size = 4.5, color = "black", hjust = 0)
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_c3_out.jpg', plot = fut2fib_c3, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in")
+
+# Myeloperoxidase
+
+mod_dt_fiber_sol_pk_m <- lm(mpo_ln ~ dt_fiber_sol_pk + secr_status + dt_fiber_sol_pk * secr_status, data = df_m_out)
+summary(mod_dt_fiber_sol_pk_m) # riiiiight so now that's NS
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 58)", "Secretors (n = 225)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Adding a label for statistical analysis results 
+# analysis_results <- "Secretor Status: β = 0.89, P = 0.02, \n Interaction (Fiber:Secretor Status): β = -0.24, P = 0.03"
+
+# Add a new column to indicate whether each observation belongs to the facet you want to label
+# df_m_out$facet_label <- ifelse(df_m_out$secr_status == "secretor", TRUE, FALSE)
+
+# Plot with both genotypes 
+
+fut2fib_m3 <- ggplot(data = df_m_out, aes(x = dt_fiber_sol_pk, y = mpo_ln)) +
+           geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+        labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "Myeloperoxidase ~ Habitual Soluble Fiber + Secretor Status + Habitual Sol. Fiber * Secretor Status",
+             x = "Habitual Soluble Fiber Intake (grams/1000 kcal)",
+             y = "Transformed Myeloperoxidase (ln(x + 1))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt")) 
+# geom_text(data = subset(df_m_out, facet_label == TRUE), aes(x = 2, y = 9, label = analysis_results), size = 4.5, color = "black", hjust = 0)
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_m3_out.jpg', plot = fut2fib_m3, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in") # I CRY
+
+
+```
+
+
+```{r remove-outliers4}
+
+# LBP tot fib
+# separating the two secretor status levels, to eliminate outliers from each
+df_l_ns <- df_l[df_l$secr_status == "non_secretor", ]
+df_l_s <- df_l[df_l$secr_status == "secretor", ]
+
+# identify and remove outliers 
+# out_c_ns <- boxplot.stats(df_l_ns$fibe_pk)$out # success! well..this shows the values
+# df_out_c_ns <- which(df_l_ns$fibe_pk %in% c(out_c_ns)) screeee
+
+# here's where we change the variable we're looking at (FFQ fiber)
+View(identify_outliers(data = df_l_ns, variable = "fibe_pk")) # alright, I'll remove 6003, 6053, 8031
+
+View(identify_outliers(data = df_l_s, variable = "fibe_pk")) # 5048, 6032, 7043, 8058
+
+# filter out le outliers
+df_l_ns_out <- df_l_ns %>% filter(!subject_id %in% c(6053, 8031)) # woop
+df_l_s_out <- df_l_s %>% filter(!subject_id %in% c(6032, 6091, 7077, 7116, 8085, 9035, 9056, 9065))
+
+# smack em back together so you can run the models .. scree I'm gonna need to do this again for the others. 
+
+df_l_out <- rbind(df_l_ns_out, df_l_s_out) # yee
+
+# identify and remove outliers 
+# out_c_ns <- boxplot.stats(df_l_ns$fibe_pk)$out # success! well..this shows the values
+# df_out_c_ns <- which(df_l_ns$fibe_pk %in% c(out_c_ns)) screeee
+
+# here's where we change the variable we're looking at (FFQ fiber)
+View(identify_outliers(data = df_l_ns, variable = "dt_fibe_pk")) # alright, I'll remove 6003, 6053, 8031
+
+View(identify_outliers(data = df_l_s, variable = "dt_fibe_pk")) # 5048, 6032, 7043, 8058
+
+# filter out le outliers
+df_l_ns_out <- df_l_ns %>% filter(!subject_id %in% c(6003, 6053, 8031)) # woop
+df_l_s_out <- df_l_s %>% filter(!subject_id %in% c(5048, 6032, 7043, 7056, 7067, 8058, 9035))
+
+# smack em back together so you can run the models .. scree I'm gonna need to do this again for the others. 
+
+df_l_out <- rbind(df_l_ns_out, df_l_s_out) # yee
+
+
+# LBP sol fib
+
+# separating the two secretor status levels, to eliminate outliers from each
+df_l_ns <- df_l[df_l$secr_status == "non_secretor", ]
+df_l_s <- df_l[df_l$secr_status == "secretor", ]
+
+# identify and remove outliers 
+# out_c_ns <- boxplot.stats(df_l_ns$fibe_pk)$out # success! well..this shows the values
+# df_out_c_ns <- which(df_l_ns$fibe_pk %in% c(out_c_ns)) screeee
+
+# here's where we change the variable we're looking at (FFQ fiber)
+View(identify_outliers(data = df_l_ns, variable = "dt_fiber_sol_pk")) # 
+
+View(identify_outliers(data = df_l_s, variable = "dt_fiber_sol_pk")) # 
+
+# filter out le outliers
+df_l_ns_out <- df_l_ns %>% filter(!subject_id %in% c(6003)) # woop
+df_l_s_out <- df_l_s %>% filter(!subject_id %in% c(5048, 6032, 9035))
+
+# smack em back together so you can run the models .. scree I'm gonna need to do this again for the others. 
+
+df_l_out <- rbind(df_l_ns_out, df_l_s_out) # yee
+
+```
+
+```{r lbp-add}
+
+# LBP
+
+mod_fibe_pk_l <- lm(lbp_ln ~ fibe_pk + secr_status + fibe_pk * secr_status + sex + bmi_final, data = df_l_out)
+summary(mod_fibe_pk_l) # NS
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 68)", "Secretors (n = 260)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Plot with both genotypes 
+
+fut2fib_l1 <- ggplot(data = df_l_out, aes(x = fibe_pk, y = lbp_ln)) +
+         geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+        labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "LBP ~ Recent Fiber + Secretor Status + Recent Fiber * Secretor Status + Sex + BMI",
+             x = "Recent Fiber Intake (grams/1000 kcal)",
+             y = "Transformed LPS-binding protein (ln(x + 1))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt"))
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_l1_out.jpg', plot = fut2fib_l1, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in")
+
+#
+
+mod_dt_fibe_pk_l <- lm(lbp_ln ~ dt_fibe_pk + secr_status + dt_fibe_pk * secr_status + sex + bmi_final, data = df_l_out)
+summary(mod_dt_fibe_pk_l) # NS
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 67)", "Secretors (n = 261)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Adding a label for statistical analysis results 
+analysis_results <- "Secretor Status: β = -0.40, P = 0.07, \n Interaction (Fiber:Secretor Status): β = 0.03, P = 0.11"
+
+# Add a new column to indicate whether each observation belongs to the facet you want to label
+df_l_out$facet_label <- ifelse(df_l_out$secr_status == "secretor", TRUE, FALSE)
+
+
+# Plot with both genotypes 
+
+fut2fib_l2 <- ggplot(data = df_l_out, aes(x = dt_fibe_pk, y = lbp_ln)) +
+         geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+        labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "LBP ~ Habitual Fiber + Secretor Status + Habitual Fiber * Secretor Status + Sex + BMI",
+             x = "Habitual Fiber Intake (grams/1000 kcal)",
+             y = "Transformed LPS-binding protein (ln(x + 1))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt")) + 
+ geom_text(data = subset(df_l_out, facet_label == TRUE), aes(x = 10, y = 4, label = analysis_results), size = 4.5, color = "black", hjust = 0)
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_l2_out.jpg', plot = fut2fib_l2, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in")
+
+
+# LBP
+
+mod_dt_fiber_sol_pk_l <- lm(lbp_ln ~ dt_fiber_sol_pk + secr_status + dt_fiber_sol_pk * secr_status + sex + bmi_final, data = df_l_out)
+summary(mod_dt_fiber_sol_pk_l) # NS
+
+# Plot with both genotypes 
+# New facet label names for dose variable
+secr.labs <- c("Non-secretors (n = 69)", "Secretors (n = 265)")
+names(secr.labs) <- c("non_secretor", "secretor")
+
+# Adding a label for statistical analysis results 
+analysis_results <- "Secretor Status: β = -0.33, P = 0.10, \n Interaction (Fiber:Secretor Status): β = 0.08, P = 0.16"
+
+# Add a new column to indicate whether each observation belongs to the facet you want to label
+df_l_out$facet_label <- ifelse(df_l_out$secr_status == "secretor", TRUE, FALSE)
+
+# Plot with both genotypes 
+
+fut2fib_l3 <- ggplot(data = df_l_out, aes(x = dt_fiber_sol_pk, y = lbp_ln)) +
+                geom_point(color = "black") +
+        geom_smooth(method = "lm", 
+                    se = T, 
+                    color = "blue") +
+  facet_grid(~secr_status,
+        labeller = labeller(secr_status = secr.labs)) +
+        labs(title = "LBP ~ Habitual Soluble Fiber + Secretor Status + Hab. Soluble Fiber * Secretor Status + Sex + BMI",
+             x = "Habitual Soluble Fiber Intake (grams/1000 kcal)",
+             y = "Transformed LBP (ln(x + 1))",
+             fill = "Secretor Status") +
+  theme_bw() + 
+  theme(text = element_text(size = 18),
+        plot.title = element_text(size = 20),
+           axis.title = element_text(size = 16),
+           axis.text = element_text(size = 14),
+        legend.position = "none",
+        plot.margin = margin(10, 50, 10, 30, unit = "pt")) + 
+ geom_text(data = subset(df_l_out, facet_label == TRUE), aes(x = 3, y = 4, label = analysis_results), size = 4.5, color = "black", hjust = 0)
+
+ggsave(filename = '/Users/yasmine.bouzid/Documents/FUT2_analysis/plots/fut2fib_l3_out.jpg', plot = fut2fib_l3, device = 'jpeg', dpi = 300, width = 15, height = 6.25, units = "in")
+
+```
+
