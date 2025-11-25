@@ -5,6 +5,9 @@
 - FUT2guthealth_covars_sex.Rmd
 - FUT2guthealth_covars_BMI.Rmd
 
+**Determine any differences in GI health markers (calprotectin, myeloperoxidase, neopterin, LBP) by secretors status**
+- gi_markers_bysecretorstatus_FUT2guthealth.Rmd
+
 **Determine any differences in fiber intake (recent, habitual, habitual soluble) by secretors status**
 - fiberbysecretorstatus_FUT2guthealth.Rmd
 
