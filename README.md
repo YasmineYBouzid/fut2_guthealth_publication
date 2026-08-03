@@ -1,14 +1,14 @@
 # fut2_guthealth_publication
 
-**Determine any differences of covariates (age, sex, BMI) by secretors status**
+**Determine any differences of covariates (age, sex, BMI) by secretor status**
 - FUT2guthealth_covars_age.Rmd
 - FUT2guthealth_covars_sex.Rmd
 - FUT2guthealth_covars_BMI.Rmd
 
-**Determine any differences in GI health markers (calprotectin, myeloperoxidase, neopterin, LBP) by secretors status**
+**Determine any differences in GI health markers (calprotectin, myeloperoxidase, neopterin, LBP) by secretor status**
 - gi_markers_bysecretorstatus_FUT2guthealth.Rmd
 
-**Determine any differences in fiber intake (recent, habitual, habitual soluble) by secretors status**
+**Determine any differences in fiber intake (recent, habitual, habitual soluble) by secretor status**
 - fiberbysecretorstatus_FUT2guthealth.Rmd
 
 **Determine and plot associations between fiber intake and GI health markers with interactions of secretor status**
